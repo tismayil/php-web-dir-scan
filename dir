@@ -1,0 +1,223 @@
+<?php
+
+define("DEFAULT_PATH", __DIR__);
+define("PATHS_LIST", "path.txt");
+define("USER_AGENT" , "user-agents.txt");
+
+$_show_status = array( '200' , '301' );
+$_hide_status = array( '0' );
+
+
+echo "\e[32m
+#################################################################################
+
+██████╗ ██╗  ██╗██████╗     ██╗    ██╗███████╗██████╗     ██████╗ ██╗██████╗     ███████╗ ██████╗ █████╗ ███╗   ██╗    
+██╔══██╗██║  ██║██╔══██╗    ██║    ██║██╔════╝██╔══██╗    ██╔══██╗██║██╔══██╗    ██╔════╝██╔════╝██╔══██╗████╗  ██║    
+██████╔╝███████║██████╔╝    ██║ █╗ ██║█████╗  ██████╔╝    ██║  ██║██║██████╔╝    ███████╗██║     ███████║██╔██╗ ██║    
+██╔═══╝ ██╔══██║██╔═══╝     ██║███╗██║██╔══╝  ██╔══██╗    ██║  ██║██║██╔══██╗    ╚════██║██║     ██╔══██║██║╚██╗██║    
+██║     ██║  ██║██║         ╚███╔███╔╝███████╗██████╔╝    ██████╔╝██║██║  ██║    ███████║╚██████╗██║  ██║██║ ╚████║    
+╚═╝     ╚═╝  ╚═╝╚═╝          ╚══╝╚══╝ ╚══════╝╚═════╝     ╚═════╝ ╚═╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝    
+ \n			  
+#################################################################################	\n			  
+\e[0m";
+
+
+    class ArgvParser{
+        const MAX_ARGV = 1000;
+        public function parseConfigs(&$message = null)
+        {
+            if (is_string($message)) {
+                $argv = explode(' ', $message);
+            } else if (is_array($message)) {
+                $argv = $message;
+            } else {
+                global $argv;
+                if (isset($argv) && count($argv) > 1) {
+                    array_shift($argv);
+                }
+            }
+            $index   = 0;
+            $configs = array();
+            while ($index < self::MAX_ARGV && isset($argv[$index])) {
+                if (preg_match('/^([^-\=]+.*)$/', $argv[$index], $matches) === 1) {
+                    $configs[$matches[1]] = true;
+                } else if (preg_match('/^-+(.+)$/', $argv[$index], $matches) === 1) {
+                    if (preg_match('/^-+(.+)\=(.+)$/', $argv[$index], $subMatches) === 1) {
+                        $configs[$subMatches[1]] = $subMatches[2];
+                    } else if (isset($argv[$index + 1]) && preg_match('/^[^-\=]+$/', $argv[$index + 1]) === 1) {
+                        $configs[$matches[1]] = $argv[$index + 1];
+                        $index++;
+                    } else {
+                        $configs[$matches[1]] = true;
+                    }
+                }
+                
+                $index++;
+            }
+            
+            return $configs;
+        }
+    }
+
+    $argvParser = new ArgvParser();
+    $params     = (object) $argvParser->parseConfigs($argv);
+
+    if( isset( $params->show  ) )
+    {
+        $_show_status = explode("," , $params->show);
+    }
+
+    if( isset( $params->hide  ) )
+    {
+        $_hide_status = explode("," , $params->hide);
+    }
+
+    if( isset($params->help) )
+    {
+        echo " --u Target site url \n";
+        echo "\n";
+        echo " --show 200,301  Show pages with response httpcode \n";
+        echo " --hide 404 Hide pages with response httpcode \n";
+        echo "\n";
+        echo "--random-agent Set random agent per request";
+        echo "\n\n\n";
+        exit();
+    }
+
+    if( !isset( $params->u ) )
+    {
+        exit("Please add -u (Url) \n\n");
+    }
+
+    if (!filter_var($params->u, FILTER_VALIDATE_URL)) 
+    {
+        exit(" $params->u Not Valid Url. \n\n");
+    }
+
+    function getBrowser($ua) {
+        $u_agent = $ua;
+        $bname = 'Unknown';
+        $platform = 'Unknown';
+        $version= "";
+        $ub = "None";
+        if (preg_match('/linux/i', $u_agent)) {
+          $platform = 'linux';
+        } elseif (preg_match('/macintosh|mac os x/i', $u_agent)) {
+          $platform = 'mac';
+        } elseif (preg_match('/windows|win32/i', $u_agent)) {
+          $platform = 'windows';
+        }
+        if(preg_match('/MSIE/i',$u_agent) && !preg_match('/Opera/i',$u_agent)) {
+          $bname = 'Internet Explorer';
+          $ub = "MSIE";
+        } elseif(preg_match('/Firefox/i',$u_agent)) {
+          $bname = 'Mozilla Firefox';
+          $ub = "Firefox";
+        } elseif(preg_match('/Chrome/i',$u_agent)) {
+          $bname = 'Google Chrome';
+          $ub = "Chrome";
+        } elseif(preg_match('/Safari/i',$u_agent)) {
+          $bname = 'Apple Safari';
+          $ub = "Safari";
+        } elseif(preg_match('/Opera/i',$u_agent)) {
+          $bname = 'Opera';
+          $ub = "Opera";
+        } elseif(preg_match('/Netscape/i',$u_agent)) {
+          $bname = 'Netscape';
+          $ub = "Netscape";
+        }
+        $known = array('Version', $ub, 'other');
+        $pattern = '#(?<browser>' . join('|', $known) . ')[/ ]+(?<version>[0-9.|a-zA-Z.]*)#';
+        if (!preg_match_all($pattern, $u_agent, $matches)) {
+        }
+        $i = count($matches['browser']);
+        if ($i != 1) {
+          if (strripos($u_agent,"Version") < strripos($u_agent,$ub)){
+            $version= $matches['version'][0];
+          } else {
+            $version= @$matches['version'][1];
+          }
+        } else {
+          $version= $matches['version'][0];
+        }
+        if ($version==null || $version=="") {$version="?";}
+      return array(
+        'userAgent' => $u_agent,
+        'name'      => $bname,
+        'version'   => $version,
+        'platform'  => $platform,
+        'pattern'    => $pattern
+        );
+      }
+    
+
+  
+    function _curl( $url )
+    {
+        Global $params;
+        $agents = file( USER_AGENT );
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url );
+        if( isset($params->{"random-agent"}) )
+        {
+            $ag = $agents[array_rand($agents)];
+            curl_setopt($ch,CURLOPT_USERAGENT, $ag );
+        }else{
+            $ag = 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0; pl) Opera 8.54';
+        }
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $server_output = curl_exec($ch);
+        $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close ($ch);
+        return array( 'status' => $httpcode , 'source' => $server_output , 'agent' => getBrowser($ag) );
+    }
+
+    if( substr( $params->u, strlen($params->u)-1 , strlen($params->u)) ==  "/" )
+    {
+        $params->u = substr( $params->u , 0 , strlen($params->u)-1 );
+    }
+
+    $paths = file( PATHS_LIST );
+    $_returnList = array();
+
+    foreach( $paths as $key => $value )
+    {
+        $reqUrl = $params->u."/".$value;
+        $reqUrl = str_replace("\n" , "" , $reqUrl);
+        $request = _curl($reqUrl);
+
+        if( in_array($request['status'] , $_show_status)  )
+        {
+            echo " 🤖  ( ".$request['agent']['name']." | ".$request['agent']['version']." ) ====> ";
+            $_returnList[] = " $reqUrl - ".$request['status']." \n";   
+            echo "\e[32m $reqUrl - ".$request['status']." \e[0m\n";
+
+        }else{
+            if( !in_array( $request['status'] , $_hide_status ) ){
+                echo " 🤖  ( ".$request['agent']['name']." | ".$request['agent']['version']." ) ====> ";
+                echo " $reqUrl - ".$request['status']." \n";
+            }
+        }
+    }
+
+
+echo "\e[32m
+#################################################################################
+
+    ██████╗ ███████╗███████╗██╗   ██╗██╗  ████████╗
+    ██╔══██╗██╔════╝██╔════╝██║   ██║██║  ╚══██╔══╝
+    ██████╔╝█████╗  ███████╗██║   ██║██║     ██║   
+    ██╔══██╗██╔══╝  ╚════██║██║   ██║██║     ██║   
+    ██║  ██║███████╗███████║╚██████╔╝███████╗██║   
+    ╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚══════╝╚═╝                                     
+ \n			 
+#################################################################################	\n			  
+\e[0m";
+
+    foreach( $_returnList as $key => $value )
+    {
+        echo "$value";
+    }
+    echo "\n\n\n";
+
+    
