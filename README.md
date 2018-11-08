@@ -14,7 +14,7 @@ A tool that will help you find access to unwanted folders and files that are for
 
 
 
-## Examples
+## Example
 
 ```bash
   php dir --u "http(s)://example.com" --show 200,301 --random-agent
